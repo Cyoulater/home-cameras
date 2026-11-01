@@ -1,0 +1,12 @@
+# For computers that already have Docker (Linux box, Raspberry Pi, NAS).
+# Start:  docker compose up -d      Stop:  docker compose down
+services:
+  cameras:
+    image: alexxit/go2rtc:1.9.14
+    container_name: home-cameras
+    restart: unless-stopped
+    # "host" networking lets the app find cameras on your Wi-Fi.
+    network_mode: host
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml
+      - ./web:/config/web:ro

@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------
+#  YOUR CAMERA LIST
+#
+#  Each camera gets one line under "streams:".
+#    - The name on the left is what shows on its tile.
+#      Use letters and underscores, no spaces (front_door, garage).
+#    - The address on the right tells the app how to reach it.
+#
+#  To add a camera, delete the "#" at the start of an example line
+#  and fill in your own details. CAMERA-GUIDE.md explains what to
+#  put in for each brand.
+#
+#  Tip: if a camera has a smaller "sub stream", add it with the same
+#  name plus "_sub". The grid uses the small one (faster), and the
+#  big one is used when you tap the tile.
+# ---------------------------------------------------------------
+
+streams:
+
+  # --- Night Owl recorder (DVR/NVR). ch0 = first camera, ch1 = second, and so on.
+  #     The ending can differ by model; CAMERA-GUIDE.md lists the others to try.
+  # night_owl_1: rtsp://admin:YOURPASSWORD@192.168.1.50:554/ch0_0.264
+  # night_owl_1_sub: rtsp://admin:YOURPASSWORD@192.168.1.50:554/ch0_1.264
+
+  # --- Zmodo camera that still allows local viewing
+  # zmodo: rtsp://admin:YOURPASSWORD@192.168.1.51:10554/tcp/av0_0
+  # zmodo_sub: rtsp://admin:YOURPASSWORD@192.168.1.51:10554/tcp/av0_1
+
+  # --- Off-brand camera that uses the XMEye / iCSee app
+  # backyard: dvrip://admin:YOURPASSWORD@192.168.1.52:34567?channel=0&subtype=0
+  # backyard_sub: dvrip://admin:YOURPASSWORD@192.168.1.52:34567?channel=0&subtype=1
+
+  # --- Any camera that supports ONVIF (most off-brand ones do)
+  # side_yard: onvif://admin:YOURPASSWORD@192.168.1.53
+
+  # --- Off-brand camera that uses the "Tuya Smart" app (use Add camera > Tuya to get this line)
+  # porch: tuya://protect-us.ismartlife.me?device_id=XXX&email=XXX&password=XXX
+
+# Where the app listens. Open http://THIS-COMPUTER:1984 in a browser.
+api:
+  listen: ":1984"
+  static_dir: "web"
+  # Uncomment to require a login for the camera page (recommended):
+  # username: "miguel"
+  # password: "pick-a-password"
+
+# Lets phones and other browsers get smooth live video.
+webrtc:
+  listen: ":8555"
+
+# Turn off the RTSP re-share port; you only need the web page.
+rtsp:
+  listen: ""
+
+log:
+  level: info
