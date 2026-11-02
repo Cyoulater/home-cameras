@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#111">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>My Cameras</title>
+    <style>
+        :root {
+            --bg: #0e0f11;
+            --tile: #1a1c20;
+            --text: #eceff3;
+            --muted: #9aa1ab;
+            --accent: #3d8bfd;
+            --ok: #33c26b;
+            --bad: #ef5350;
+            --gap: 6px;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+        body { display: flex; flex-direction: column; }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            padding-top: max(8px, env(safe-area-inset-top));
+        }
+        header h1 { font-size: 18px; margin: 0; flex: 1; white-space: nowrap; }
+        header a, header button {
+            color: var(--text);
+            background: #23262b;
+            border: 0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 14px;
+            text-decoration: none;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        @media (max-width: 480px) { #full { display: none; } }
+        header a:hover, header button:hover { background: #30343a; }
+
+        #grid {
+            flex: 1;
+            display: grid;
+            gap: var(--gap);
+            padding: var(--gap);
+            min-height: 0;
+            grid-template-columns: repeat(var(--cols, 2), 1fr);
+            grid-auto-rows: 1fr;
+        }
+
+        .tile {
+            position: relative;
+            background: var(--tile);
+            border-radius: 8px;
+            overflow: hidden;
+            cursor: pointer;
+            min-height: 120px;
+        }
+        .tile video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000 !important;
+            display: block;
+        }
+        .tile video::-webkit-media-controls { display: none !important; }
+
+        /* Phone held upright: tiles keep a video shape and the page scrolls if needed */
+        body.portrait #grid { grid-auto-rows: auto; align-content: start; }
+        body.portrait .tile { aspect-ratio: 16 / 9; min-height: 0; }
+        body.portrait.single .tile.big { aspect-ratio: auto; height: 100%; }
+        body.portrait.single #grid { grid-auto-rows: 1fr; }
+        .label {
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            padding: 6px 10px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(transparent, rgba(0,0,0,.75));
+            pointer-events: none;
+        }
+        .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+        .tile.playing .dot { background: var(--ok); }
+        .tile.error .dot { background: var(--bad); }
+        .status {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 16px;
+            color: var(--muted);
+            font-size: 14px;
+            pointer-events: none;
+        }
+        .tile.playing .status { display: none; }
+
+        /* One camera blown up to fill the screen */
+        body.single #grid { grid-template-columns: 1fr; }
+        body.single .tile:not(.big) { display: none; }
+
+        #empty {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        #empty a { color: var(--accent); }
+        body.none #empty { display: flex; }
+        body.none #grid { display: none; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>My Cameras</h1>
+    <button id="back" hidden>&larr; All cameras</button>
+    <button id="full" title="Full screen">Full screen</button>
+    <a href="add.html" title="Add or find a camera">Add camera</a>
+    <a href="config.html" title="Edit camera list">Settings</a>
+</header>
+
+<main id="grid"></main>
+
+<div id="empty">
+    <p><b>No cameras yet.</b></p>
+    <p>Open <a href="config.html">Settings</a> and add your cameras under <code>streams:</code>,<br>
+        or use <a href="add.html">Add camera</a> to search your network for them.</p>
+</div>
+
+<script type="module">
+    import {VideoRTC} from './video-rtc.js';
+
+    // A video player tile that reports how it is doing.
+    class CameraTile extends VideoRTC {
+        oninit() {
+            super.oninit();
+            this.video.muted = true;
+            this.video.controls = false;
+            this.video.addEventListener('playing', () => this.setPlaying());
+        }
+        onopen() {
+            const modes = super.onopen();
+            this.onmessage['tile'] = msg => {
+                if (msg.type === 'error' && !this.closest('.tile')?.classList.contains('playing')) {
+                    this.setError(msg.value);
+                }
+            };
+            return modes;
+        }
+        onmjpeg() {
+            super.onmjpeg();
+            const show = this.ondata;
+            this.ondata = data => { show(data); this.setPlaying(); };
+        }
+        setStatus(text) {
+            const tile = this.closest('.tile');
+            if (!tile) return;
+            tile.classList.remove('playing', 'error');
+            tile.querySelector('.status').textContent = text;
+        }
+        setPlaying() {
+            const tile = this.closest('.tile');
+            if (tile) { tile.classList.remove('error'); tile.classList.add('playing'); }
+        }
+        setError(text) {
+            const tile = this.closest('.tile');
+            if (!tile) return;
+            tile.classList.remove('playing');
+            tile.classList.add('error');
+            tile.querySelector('.status').textContent = 'Can\'t reach this camera. ' + friendly(text);
+        }
+    }
+    customElements.define('camera-tile', CameraTile);
+
+    function friendly(err) {
+        err = String(err || '');
+        if (/401|unauthor|wrong password|auth/i.test(err)) return 'The username or password looks wrong.';
+        if (/timeout|i\/o timeout|no route|refused|unreachable/i.test(err)) return 'It may be off, or its address changed.';
+        if (/codecs not matched/i.test(err)) return 'Your browser can\'t play this camera\'s video format.';
+        return err.length > 140 ? err.slice(0, 140) + '…' : err;
+    }
+
+    // Turn "front_door" into "Front door"
+    function prettyName(name) {
+        const s = name.replace(/[_-]+/g, ' ').trim();
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    function columnsFor(count) {
+        const wide = window.innerWidth >= window.innerHeight;
+        if (count <= 1) return 1;
+        if (!wide) return count <= 2 ? 1 : 2;        // phone held upright
+        if (count <= 4) return 2;
+        if (count <= 9) return 3;
+        return 4;
+    }
+
+    const grid = document.getElementById('grid');
+    const back = document.getElementById('back');
+    let cameras = [];
+    let byName = {};
+
+    function wsUrl(src) {
+        return new URL('api/ws?src=' + encodeURIComponent(src), location.href);
+    }
+
+    function layout() {
+        const big = document.body.classList.contains('single');
+        document.body.classList.toggle('portrait', window.innerWidth < window.innerHeight);
+        grid.style.setProperty('--cols', big ? 1 : columnsFor(cameras.length));
+    }
+
+    // Small "_sub" stream in the grid, full quality when one camera is opened.
+    function pickSource(name, big) {
+        const sub = name + '_sub';
+        return (!big && byName[sub]) ? sub : name;
+    }
+
+    function openCamera(tile) {
+        document.body.classList.add('single');
+        tile.classList.add('big');
+        back.hidden = false;
+        const player = tile.querySelector('camera-tile');
+        const src = pickSource(tile.dataset.name, true);
+        if (player.dataset.src !== src) { player.dataset.src = src; player.src = wsUrl(src); }
+        layout();
+    }
+
+    function closeCamera() {
+        const tile = grid.querySelector('.tile.big');
+        document.body.classList.remove('single');
+        back.hidden = true;
+        if (tile) {
+            tile.classList.remove('big');
+            const player = tile.querySelector('camera-tile');
+            const src = pickSource(tile.dataset.name, false);
+            if (player.dataset.src !== src) { player.dataset.src = src; player.src = wsUrl(src); }
+        }
+        layout();
+    }
+
+    back.addEventListener('click', closeCamera);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCamera(); });
+
+    document.getElementById('full').addEventListener('click', () => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else document.documentElement.requestFullscreen?.().catch(() => {});
+    });
+
+    async function load() {
+        let data;
+        try {
+            const r = await fetch('api/streams', {cache: 'no-store'});
+            data = await r.json();
+        } catch (e) {
+            document.body.classList.add('none');
+            document.querySelector('#empty p').textContent = 'Can\'t talk to the camera server. Is it running?';
+            return;
+        }
+        byName = data || {};
+        cameras = Object.keys(byName)
+            .filter(n => !(n.endsWith('_sub') && byName[n.slice(0, -4)]))
+            .sort((a, b) => a.localeCompare(b));
+
+        document.body.classList.toggle('none', cameras.length === 0);
+        grid.innerHTML = '';
+
+        for (const name of cameras) {
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            tile.dataset.name = name;
+            tile.innerHTML = '<div class="status">Connecting…</div>' +
+                '<div class="label"><span class="dot"></span><span class="name"></span></div>';
+            tile.querySelector('.name').textContent = prettyName(name);
+
+            const player = document.createElement('camera-tile');
+            player.mode = 'webrtc,mse,hls,mjpeg';
+            player.media = 'video';            // no sound in the grid
+            player.background = true;          // keep playing when scrolled away
+            player.visibilityCheck = false;
+            tile.prepend(player);
+            const src = pickSource(name, false);
+            player.dataset.src = src;
+            player.src = wsUrl(src);
+
+            tile.addEventListener('click', () => {
+                if (!tile.classList.contains('big')) openCamera(tile);
+            });
+            grid.appendChild(tile);
+        }
+        layout();
+    }
+
+    window.addEventListener('resize', layout);
+    load();
+</script>
+</body>
+</html>
