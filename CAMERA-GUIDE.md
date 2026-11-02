@@ -11,7 +11,7 @@ each one and what line to put in `go2rtc.yaml` (or paste in **Settings** on the 
 | Which phone app it uses (exact name) | | | | |
 | Plugged into a recorder box, or Wi-Fi by itself? | | | | |
 | Its address on your Wi-Fi (IP address, like 192.168.1.50) | | | | |
-| Username and password | | | | |
+| Username and password (keep these private: type them only into `go2rtc.yaml` on your own computer, never into a chat or email) | | | | |
 
 **How to find the IP address:** open the camera's own app and look under the camera's
 settings for "Device info", "Network" or "Wi-Fi info". Or log in to your Wi-Fi router
